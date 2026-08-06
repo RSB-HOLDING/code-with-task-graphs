@@ -33,7 +33,7 @@ The bundled Python ledger has no third-party dependencies. It records and valida
 
 ## Install
 
-### One command with GitHub CLI
+### One command with a recent GitHub CLI
 
 ```bash
 gh skill install jmmsalsalem-collab/code-with-task-graphs code-with-task-graphs --agent codex --scope user
