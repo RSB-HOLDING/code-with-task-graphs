@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code with Task Graphs"
+  short_description: "Run coding work as a dependency graph"
+  default_prompt: "Use $code-with-task-graphs to plan and execute this coding task as a dependency graph."
