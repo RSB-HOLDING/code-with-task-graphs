@@ -20,14 +20,14 @@ The graph is the coarse workflow: tasks become ready only after their dependenci
 ## What it adds
 
 - Dependency and cycle validation before coding starts
-- A calculated ready set for safe parallel work
+- A calculated ready set for dependency-aware parallel work
 - Atomic task claims with stale-worker fencing
 - Declared file scopes and overlap checks for concurrent writers
 - Evidence receipts for checks and changed files
 - Localized retries that invalidate only affected descendants
 - Resume support through a persistent task ledger
 - Fan-in integration, full validation, and fresh-context review gates
-- Immutable finalized runs for later auditing
+- CLI-enforced terminal state for finalized runs and later auditing
 
 The bundled Python ledger has no third-party dependencies. It records and validates orchestration state; it does **not** edit code, run tests, spawn agents, create worktrees, commit, push, deploy, or independently prove that a worker's receipt is truthful. Those actions remain visible and controlled by Codex.
 
