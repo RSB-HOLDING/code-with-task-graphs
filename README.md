@@ -31,12 +31,14 @@ The graph is the coarse workflow: tasks become ready only after their dependenci
 
 The bundled Python ledger has no third-party dependencies. It records and validates orchestration state; it does **not** edit code, run tests, spawn agents, create worktrees, commit, push, deploy, or independently prove that a worker's receipt is truthful. Those actions remain visible and controlled by Codex.
 
+The workflow keeps one writer per shared checkout and requires real isolation for parallel writers. The ledger checks declared scope overlaps, but the integrator must also sequence shared Git, dependency, generated-file, and fixture mutations; nonoverlapping filenames alone do not establish isolation.
+
 ## Install
 
 ### One command with a recent GitHub CLI
 
 ```bash
-gh skill install jmmsalsalem-collab/code-with-task-graphs code-with-task-graphs --agent codex --scope user
+gh skill install RSB-HOLDING/code-with-task-graphs code-with-task-graphs --agent codex --scope user
 ```
 
 ### Manual installation
@@ -56,6 +58,8 @@ $HOME/.agents/skills/code-with-task-graphs
 Restart Codex if it does not discover the skill immediately.
 
 Requirements: Codex and Python 3. Git is optional, but enables baseline snapshots when the skill is used inside a repository.
+
+The workflow supports Astra through the host's available model and tool configuration. Its instructions preserve authorization and task continuity across steering and resume, keep delegation bounded, and stop verification when the required evidence is complete. The ledger does not select a model or require API configuration. See the [official OpenAI model guide](https://developers.openai.com/api/docs/guides/latest-model) for current model guidance.
 
 ## Use
 
@@ -90,13 +94,24 @@ skills/code-with-task-graphs/
 │   └── openai.yaml
 └── scripts/
     └── task_graph.py
+
+tests/
+└── test_task_graph.py
 ```
 
 `SKILL.md` contains the complete workflow. `task_graph.py` is the dependency-free state ledger used by the skill.
 
 ## Validation
 
-This release has been checked with the official Codex skill validator, fresh-agent behavior tests, Python syntax checks, state-transition scenarios, and an independent integrity review. These checks reduce packaging and orchestration mistakes; they do not guarantee that every coding task or agent output will be correct.
+Run the dependency-free CLI regression suite from the repository root:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+It exercises dependency ordering, concurrent claims, stale-worker fencing, attempt caps, localized invalidation, scope enforcement, repository binding, evidence receipts, and terminal states. The suite uses temporary checkouts and stores; it does not run agents or alter a working repository. The Codex skill validator can separately check `skills/code-with-task-graphs` when available. Passing these checks verifies the covered ledger behavior, not the truth of a worker's receipt or a live-system outcome.
+
+The GitHub Actions workflow runs the suite on Linux with Python 3.10 and 3.14, and on Windows with Python 3.14 to exercise both locking implementations. It uses read-only repository permissions and installs no Python packages.
 
 ## Background
 
