@@ -1,6 +1,6 @@
 ---
 name: code-with-task-graphs
-description: Plan and execute complex coding work as a validated dependency graph of bounded tasks, quality gates, parallel agents, fan-in integration, and localized retries. Use when the user asks for graph engineering, a task DAG, dependency-aware coding, parallel coding agents, a resumable multi-step feature, selective retries, or an alternative to one long agent or Ralph-style loop. Do not use for charts, data visualization, graph databases, code knowledge graphs, or a trivial edit that gains nothing from decomposition.
+description: Plan and execute complex coding work as a validated dependency graph with bounded tasks, parallel agents, integration gates, and localized retries. Use for task DAGs, dependency-aware coding, parallel implementation, or resumable multi-step features. Do not use for visualization, graph databases, code knowledge graphs, or trivial edits that gain nothing from decomposition.
 ---
 
 # Code with Task Graphs
@@ -12,12 +12,20 @@ This skill includes `scripts/task_graph.py`, a dependency-free state ledger. Wit
 ## Choose the smallest useful workflow
 
 - Use a normal single-agent workflow for a clear one-file edit with no meaningful design decision or cross-cutting risk.
-- Use a small graph for work spanning roughly two to four files, one design decision, or separate implementation and verification stages.
-- Use a full graph for five or more files, multiple design decisions, cross-layer work, migrations, public APIs, authentication, concurrency, or other high-risk changes.
+- Use a small graph for one design decision or separate implementation and verification stages.
+- Use a full graph when several independent deliverables, dependencies, or material risks justify separate implementation, integration, and review stages. File count alone does not justify more nodes.
 - Honor an explicit graph request for a small task, but keep it to one implementation node and one validation node.
 - Do not create more worker nodes than genuinely independent work scopes.
 
 State the chosen size and why in one sentence before creating the graph.
+
+## Preserve the active request
+
+Apply this workflow within the host's instruction hierarchy and the user's current scope. Prior user authorization remains valid unless withdrawn or superseded; a skill is not a new permission boundary. Resolve routine implementation choices from the repository and available evidence, and ask only for a missing decision that materially affects the outcome.
+
+Treat a status question, correction, or constraint as steering the active task unless the user cancels or replaces it. Answer briefly, update affected contracts, and continue independent ready work. A blocked branch does not block unrelated nodes. Keep its missing evidence or user decision visible instead of claiming the whole graph is complete.
+
+When running with Astra, use the models, effort levels, subagents, and tools actually exposed by the host. Keep the selected model unless the user or task needs a supported alternative; do not translate a model nickname into a guessed API ID or add model settings to the ledger. The CLI remains model-independent.
 
 ## Inspect before planning
 
@@ -80,8 +88,8 @@ python <skill-dir>/scripts/task_graph.py tree <run>
 Fix every validation error. In particular:
 
 - reject missing dependencies and cycles;
-- add an explicit dependency between shared-checkout writers whose scopes overlap;
-- narrow scopes or use actual worktrees for parallel writers;
+- add ordering dependencies so only one writer runs in a shared checkout at a time, even when declared scopes are disjoint;
+- use actual isolated worktrees for parallel writers and keep each lane's ownership explicit;
 - add a serialized integration node downstream of both branches when isolated worktrees overlap;
 - add acceptance criteria before dispatch;
 - include a validation node after implementation sinks;
@@ -110,6 +118,7 @@ For each delegated node, give the worker only the context it needs:
 - the overall goal;
 - the complete node contract;
 - upstream outputs and evidence;
+- the active user constraints and authorization relevant to this node;
 - relevant repository guidance;
 - the exact owned paths;
 - the checks it must run;
@@ -118,12 +127,14 @@ For each delegated node, give the worker only the context it needs:
 
 Use subagents for bounded independent work. Keep the main agent responsible for the graph, contracts, dependency changes, integration, and final truthfulness.
 
-Parallelize read-only exploration freely when useful. Parallelize writers only when their scopes are disjoint or each has a real isolated worktree. Never assume separate agent context implies separate filesystems.
+Delegate work that can proceed alongside useful local work; use the available concurrency limit rather than creating agents to fill slots. Keep one integrator for the final checkout. A worker must report a concrete blocker or partial result when its contract is unmet, rather than silently expanding scope.
+
+Parallelize read-only exploration when useful. Keep one writer per shared checkout; parallel writers require actual isolated worktrees or equivalent isolated environments. Serialize operations that mutate shared Git state, dependencies, lockfiles, generated files, or test fixtures. Never assume separate agent context implies separate filesystems. The ledger's overlap checks are a minimum structural guard, not proof of safe concurrent writes or physical isolation.
 
 After a worker returns:
 
 1. Inspect the actual diff and repository state.
-2. Run the node's deterministic checks through the normal tool and permission flow.
+2. Inspect the check output and confirm it applies to the current diff. Run missing checks through the normal tool and permission flow; repeat completed checks when changes, stale evidence, or integration effects justify it.
 3. Compare the result with every acceptance criterion.
 4. Record the node as passed only with concrete evidence:
 
@@ -131,7 +142,7 @@ After a worker returns:
 python <skill-dir>/scripts/task_graph.py pass <run> <id> --claim <claim-token> --worker-settled --summary "<what changed>" --check-result "<declared check: result>" --evidence "<artifact or reviewed fact>" --file "<repo-relative changed file>"
 ```
 
-Repeat `--check-result` exactly once per declared check and `--file` once per changed file. Omit `--file` for research, decision, validation, and review nodes because those nodes may not record code changes.
+Repeat `--check-result` exactly once per declared check, in declaration order; include the command and observed result. Identical outcomes remain separate receipts. Repeat `--file` once per changed file. Omit `--file` for research, decision, validation, and review nodes because those nodes may not record code changes.
 
 Do not treat an agent's claim of completion as evidence by itself.
 
@@ -176,9 +187,9 @@ On resume:
 2. Inspect any node still marked running; never assume its worker survived. Before failing or reclaiming it, await or interrupt the old worker and confirm it cannot make more writes. Preserve its current claim token only if that exact attempt is still authoritative; otherwise fail it with that token and `--worker-settled`, retry it, and use the new token so delayed receipts cannot close the replacement attempt.
 3. Verify that passed-node files and artifacts still exist and remain valid.
 4. Invalidate changed nodes and their descendants when external edits made their evidence stale.
-5. Continue from the newly calculated ready set.
+5. Carry forward the latest user constraints, relevant authorization, completed evidence, and outstanding work after compaction or interruption. Continue from the newly calculated ready set; a new conversational turn does not create a new graph.
 
-The ledger checkpoints node status and receipts within a run. A finalized ledger is immutable; create a new run for later changes. Do not describe this as cached model calls or restored code snapshots.
+The ledger checkpoints node status and receipts within a run. Complete and abandoned runs advertise no ready work and are immutable; create a new run for later changes. Do not describe this as cached model calls or restored code snapshots.
 
 If an obsolete graph has no running nodes and should not be resumed, seal it before starting a replacement:
 
@@ -193,7 +204,7 @@ Never abandon a graph merely to hide failed work; retain the ledger and report t
 After all implementation branches pass:
 
 1. Run a serialized integration node when branches require merging or reconciliation; otherwise use the validation node as their fan-in gate.
-2. Run the declared full test, lint, type, build, migration, or runtime checks.
+2. Run the declared checks appropriate to the changed behavior, including required repository checks. Once they pass, stop broadening or repeating verification unless new changes, failures, or unresolved concerns justify it.
 3. Use a fresh-context reviewer for large or risky changes. Ask it to inspect the diff and evidence, not to repeat implementation.
 4. Convert real review failures into targeted repair nodes or retries, then rerun affected validation.
 5. Confirm every required node is passed.
@@ -203,12 +214,12 @@ After all implementation branches pass:
 python <skill-dir>/scripts/task_graph.py finalize <run> --evidence "<full verification command and result>" --evidence "<independent review result when required>"
 ```
 
-Report the graph ID, completed nodes, retries, files changed, verification evidence, and remaining risks. Include the local ledger path so the work can be resumed or audited.
+Lead the final report with the delivered result. Include the graph ID, completed nodes, retries, files changed, verification evidence, and material remaining risks without reproducing the event log. Include the local ledger path so the work can be resumed or audited. Distinguish source changes, successful checks, and any unverified live behavior.
 
 ## Respect authority boundaries
 
-- Do not commit unless the user explicitly requests a commit.
-- If a commit is authorized, stage only the files owned by the relevant node and preserve unrelated changes.
-- Do not push, deploy, publish, merge, or open a pull request without explicit authorization.
+- Use the current request and earlier instructions to determine whether commits, pushes, deployments, publishing, merges, or pull requests are authorized. Do not ask again for an action already authorized within the same scope; credentials and tool access alone are not authorization.
+- If an external action still needs authorization, first complete the authorized local work and checks so the user can review a concrete result. Ask only at the remaining boundary, naming the action and why authorization is missing.
+- For an authorized commit, stage only the files owned by the relevant node and preserve unrelated changes.
 - Do not install orchestration tools or enable experimental features merely to satisfy this workflow.
 - Prefer deterministic repository checks over additional model opinions.

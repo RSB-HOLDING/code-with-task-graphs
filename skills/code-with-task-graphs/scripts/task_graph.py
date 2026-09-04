@@ -48,7 +48,7 @@ def fail(message: str, code: int = 2) -> None:
 
 
 def normalize_many(
-    values: list[str] | None, *, split_commas: bool = False
+    values: list[str] | None, *, split_commas: bool = False, unique: bool = True
 ) -> list[str] | None:
     if values is None:
         return None
@@ -56,7 +56,7 @@ def normalize_many(
     for value in values:
         for item in (value.split(",") if split_commas else [value]):
             item = item.strip()
-            if item and item not in result:
+            if item and (not unique or item not in result):
                 result.append(item)
     return result
 
@@ -594,7 +594,7 @@ def graph_analysis(state: dict) -> dict:
     ready = []
     blocked = []
     for node in nodes:
-        if node.get("status") != "pending":
+        if state.get("status") in RUN_TERMINAL or node.get("status") != "pending":
             continue
         dependencies = [nodes_by_id.get(dep) for dep in node.get("depends_on", [])]
         if dependencies and any(dep is None for dep in dependencies):
@@ -882,7 +882,8 @@ def archive_attempt(node: dict) -> None:
 
 def cmd_pass(args) -> None:
     evidence = normalize_many(args.evidence) or []
-    check_results = normalize_many(args.check_results) or []
+    # Receipts correspond to declared checks in order; equal outcomes are valid.
+    check_results = normalize_many(args.check_results, unique=False) or []
     if not args.summary.strip():
         fail("--summary is required to pass a node")
     if not has_text_items(evidence):
